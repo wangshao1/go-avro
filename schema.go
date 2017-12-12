@@ -55,6 +55,8 @@ const (
 	// Recursive schema type constant. Recursive is an artificial type that means a Record schema without its definition
 	// that should be looked up in some registry.
 	Recursive
+
+	Alias
 )
 
 const (
@@ -882,6 +884,39 @@ func (s *FixedSchema) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type AliasSchema struct {
+	Name string
+	AliasType string
+	Doc  string
+	Properties map[string]interface{}
+}
+
+func (s *AliasSchema) String() string {
+	return s.AliasType
+}
+
+func (s *AliasSchema) GetName() string {
+	return s.Name
+}
+
+func (s *AliasSchema) Type() int {
+	return Alias
+}
+// MarshalJSON serializes the given schema as JSON. Never returns an error.
+func (s *AliasSchema) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`,s.AliasType)), nil
+}
+
+// Prop gets a custom non-reserved property from this schema and a bool representing if it exists.
+func (s *AliasSchema) Prop(key string) (interface{}, bool) {
+	return nil, false
+}
+
+// Validate checks whether the given value is writeable to this schema.
+func (s *AliasSchema) Validate(v reflect.Value) bool {
+	return true
+}
+
 // GetFullName returns a fully-qualified name for a schema if possible. The format is namespace.name.
 func GetFullName(schema Schema) string {
 	switch sch := schema.(type) {
@@ -970,6 +1005,13 @@ func schemaByType(i interface{}, registry map[string]Schema, namespace string) (
 				return nil, fmt.Errorf("Unknown type name: %s", v)
 			}
 
+			// duplicate schema should use aliase type name, mainly for same enum fields 
+			aliasSchema := &AliasSchema{
+				AliasType:schema.GetName(),
+			}
+			return aliasSchema, nil
+
+
 			return schema, nil
 		}
 	case map[string][]interface{}:
@@ -1014,6 +1056,7 @@ func schemaByType(i interface{}, registry map[string]Schema, namespace string) (
 			// Type references can also be done as {"type": "otherType"}.
 			// Just call back in so we can handle this scenario in the string matcher above.
 			return schemaByType(v[schemaTypeField], registry, namespace)
+
 		}
 	case []interface{}:
 		return parseUnionSchema(v, registry, namespace)
