@@ -889,6 +889,7 @@ type AliasSchema struct {
 	AliasType string
 	Doc  string
 	Properties map[string]interface{}
+	RefSchema Schema
 }
 
 func (s *AliasSchema) String() string {
@@ -1008,12 +1009,11 @@ func schemaByType(i interface{}, registry map[string]Schema, namespace string) (
 			// duplicate schema should use aliase type name, mainly for same enum fields 
 			aliasSchema := &AliasSchema{
 				AliasType:schema.GetName(),
+				RefSchema:schema,
 			}
 			return aliasSchema, nil
-
-
-			return schema, nil
 		}
+
 	case map[string][]interface{}:
 		return parseUnionSchema(v[schemaTypeField], registry, namespace)
 	case map[string]interface{}:

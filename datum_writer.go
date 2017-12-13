@@ -91,6 +91,8 @@ func (writer *SpecificDatumWriter) write(v reflect.Value, enc Encoder, s Schema)
 		return writer.writeRecord(v, enc, s)
 	case Recursive:
 		return writer.writeRecord(v, enc, s.(*RecursiveSchema).Actual)
+	case Alias:
+		return writer.write(v, enc, s.(*AliasSchema).RefSchema)
 	}
 
 	return nil
@@ -316,6 +318,8 @@ func (writer *GenericDatumWriter) write(v interface{}, enc Encoder, s Schema) er
 		return writer.writeRecord(v, enc, s)
 	case Recursive:
 		return writer.writeRecord(v, enc, s.(*RecursiveSchema).Actual)
+	case Alias:
+		return writer.write(v, enc, s.(*AliasSchema).RefSchema)
 	}
 
 	return nil
@@ -528,6 +532,8 @@ func (writer *GenericDatumWriter) isWritableAs(v interface{}, s Schema) bool {
 		_, ok = v.(*GenericRecord)
 	case *preparedRecordSchema:
 		_, ok = v.(*GenericRecord)
+	case *AliasSchema:
+		return writer.isWritableAs(v, s.(*AliasSchema).RefSchema)
 	}
 
 	return ok
