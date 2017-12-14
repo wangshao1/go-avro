@@ -1,20 +1,18 @@
 Apache Avro for Golang
 =====================
 
-[![Build Status](https://travis-ci.org/elodina/go-avro.svg?branch=master)](https://travis-ci.org/elodina/go-avro)
+This is fork of elodina/go-avro for Guazi corp use.
 
-Please note that this project is still an early alpha and is subject to change.
+***Generate avro go files Usage***:  
 
-Installation is as easy as follows:
+`go get -u github.com/Guazi-inc/go-avro/gen_avro_go`  
 
-`go get github.com/elodina/go-avro`
+`gen_avro_go --schema=`   
 
-Some usage examples are located in [examples folder](https://github.com/elodina/go-avro/tree/master/examples):
+***Register the schema to Schema-Registry***:  
 
-* [DataFileReader](https://github.com/elodina/go-avro/blob/master/examples/data_file/data_file.go)
-* [GenericDatumReader/Writer](https://github.com/elodina/go-avro/blob/master/examples/generic_datum/generic_datum.go)
-* [SpecificDatumReader/Writer](https://github.com/elodina/go-avro/blob/master/examples/specific_datum/specific_datum.go)
-* [Schema loading](https://github.com/elodina/go-avro/blob/master/examples/load_schema/load_schema.go)
+`EXPORT  SCHEMA_REGISTRY_ADDR=your schema registry address`  
+
+If SCHEMA_REGISTRY_ADDR not specified, the generated avro go code always set schema_id = 0, just for local develop purpose.
 
 
-**go-avro** now also supports code generation from Avro schemas which is available in [codegen folder](https://github.com/elodina/go-avro/tree/master/codegen)

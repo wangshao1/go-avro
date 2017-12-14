@@ -21,7 +21,11 @@ import (
 	"fmt"
 	"go/format"
 	"strings"
+
+	"github.com/asaskevich/govalidator"
 )
+
+
 
 // CodeGenerator is a code generation tool for structs from given Avro schemas.
 type CodeGenerator struct {
@@ -30,15 +34,19 @@ type CodeGenerator struct {
 	structs           map[string]*bytes.Buffer
 	codeSnippets      []*bytes.Buffer
 	schemaDefinitions *bytes.Buffer
+	schemaRegClient   RegistryClient
+	externPackageName string
 }
 
-// NewCodeGenerator creates a new CodeGenerator for given Avro schemas.
-func NewCodeGenerator(schemas []string) *CodeGenerator {
+// NewGzCodeGenerator creates a new GzCodeGenerator for given Avro schemas.
+func NewCodeGenerator(schemas []string, schemaReg RegistryClient, exPkg string) *CodeGenerator {
 	return &CodeGenerator{
 		rawSchemas:        schemas,
 		structs:           make(map[string]*bytes.Buffer),
 		codeSnippets:      make([]*bytes.Buffer, 0),
 		schemaDefinitions: &bytes.Buffer{},
+		schemaRegClient:   schemaReg,
+		externPackageName: exPkg,
 	}
 }
 
@@ -120,7 +128,6 @@ func (codegen *CodeGenerator) Generate() (string, error) {
 			return "", err
 		}
 	}
-
 	formatted, err := format.Source([]byte(codegen.collectResult()))
 	if err != nil {
 		return "", err
@@ -150,8 +157,11 @@ func (codegen *CodeGenerator) writePackageName(info *recordSchemaInfo) error {
 		info.schema.Namespace = "avro"
 	}
 
-	packages := strings.Split(info.schema.Namespace, ".")
-	_, err = buffer.WriteString(fmt.Sprintf("%s\n\n", packages[len(packages)-1]))
+	// ***********
+	// use package name from console
+	//packages := strings.Split(info.schema.Namespace, ".")
+	//_, err = buffer.WriteString(fmt.Sprintf("%s\n\n", packages[len(packages)-1]))
+	_, err = buffer.WriteString(fmt.Sprintf("%s\n\n", codegen.externPackageName))
 	if err != nil {
 		return err
 	}
@@ -198,6 +208,16 @@ func (codegen *CodeGenerator) writeStruct(info *recordSchemaInfo) error {
 		return err
 	}
 
+	err = codegen.writeSchemaIDGetter(info, buffer)
+	if err != nil {
+		return err
+	}
+
+	err = codegen.writePackageGetter(info, buffer)
+	if err != nil {
+		return err
+	}
+
 	return codegen.writeSchemaGetter(info, buffer)
 }
 
@@ -223,7 +243,12 @@ func (codegen *CodeGenerator) writeEnumConstants(info *enumSchemaInfo, buffer *b
 		return nil
 	}
 
-	_, err := buffer.WriteString(fmt.Sprintf("// Enum values for %s\n", info.typeName))
+	_, err := buffer.WriteString(fmt.Sprintf("type %s int32\n", info.typeName))
+	if err != nil {
+		return err
+	}
+
+	_, err = buffer.WriteString(fmt.Sprintf("// Enum values for %s\n", info.typeName))
 	if err != nil {
 		return err
 	}
@@ -234,18 +259,35 @@ func (codegen *CodeGenerator) writeEnumConstants(info *enumSchemaInfo, buffer *b
 	}
 
 	for index, symbol := range info.schema.Symbols {
-		_, err = buffer.WriteString(fmt.Sprintf("%s_%s int32 = %d\n", info.typeName, symbol, index))
+		_, err = buffer.WriteString(fmt.Sprintf("%s_%s %s = %d\n", info.typeName, symbol, info.typeName, index))
 		if err != nil {
 			return err
 		}
 	}
-	_, err = buffer.WriteString(")")
+	_, err = buffer.WriteString(")\n")
+
+	_, err = buffer.WriteString(fmt.Sprintf("func(c %s) Enum() *avro.GenericEnum {\n", info.typeName))
+	_, err = buffer.WriteString("\t enum := avro.NewGenericEnum([]string{")
+	if err != nil {
+		return err
+	}
+
+	for _, symbol := range info.schema.Symbols {
+		_, err = buffer.WriteString(fmt.Sprintf(`"%s",`, symbol))
+		if err != nil {
+			return err
+		}
+	}
+	_, err = buffer.WriteString("})\n\tenum.SetIndex(int32(c))\n\t return enum \n}\n")
+	if err != nil {
+		return err
+	}
 	return err
 }
 
 func (codegen *CodeGenerator) writeImportStatement() error {
 	buffer := codegen.codeSnippets[0]
-	_, err := buffer.WriteString(`import "github.com/elodina/go-avro"`)
+	_, err := buffer.WriteString(`import "github.com/Guazi-inc/go-avro"`)
 	if err != nil {
 		return err
 	}
@@ -396,6 +438,11 @@ func (codegen *CodeGenerator) writeStructFieldType(schema Schema, buffer *bytes.
 			}
 			_, err = buffer.WriteString(schema.(*RecursiveSchema).GetName())
 		}
+	case Alias:
+		{
+			aliasSchema := schema.(*AliasSchema)
+			return codegen.writeStructFieldType(aliasSchema.RefSchema, buffer)
+		}
 	}
 
 	return err
@@ -432,12 +479,12 @@ func (codegen *CodeGenerator) writeStructConstructor(info *recordSchemaInfo, buf
 		return err
 	}
 
-	for i := 0; i < len(info.schema.Fields); i++ {
-		err = codegen.writeStructConstructorField(info, info.schema.Fields[i], buffer)
-		if err != nil {
-			return err
-		}
-	}
+	//for i := 0; i < len(info.schema.Fields); i++ {
+	//	err = codegen.writeStructConstructorField(info, info.schema.Fields[i], buffer)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	_, err = buffer.WriteString("\t}\n}")
 	return err
@@ -482,7 +529,7 @@ func (codegen *CodeGenerator) writeStructConstructorFieldValue(info *recordSchem
 		}
 	case *IntSchema:
 		{
-			defaultValue, ok := field.Default.(float64)
+			defaultValue, ok := field.Default.(int32)
 			if !ok {
 				return fmt.Errorf("Invalid default value for %s field of type %s", field.Name, field.Type.GetName())
 			}
@@ -490,7 +537,7 @@ func (codegen *CodeGenerator) writeStructConstructorFieldValue(info *recordSchem
 		}
 	case *LongSchema:
 		{
-			defaultValue, ok := field.Default.(float64)
+			defaultValue, ok := field.Default.(int64)
 			if !ok {
 				return fmt.Errorf("Invalid default value for %s field of type %s", field.Name, field.Type.GetName())
 			}
@@ -618,5 +665,48 @@ func (codegen *CodeGenerator) writeSchemaGetter(info *recordSchemaInfo, buffer *
 		return err
 	}
 	_, err = buffer.WriteString(fmt.Sprintf("return %s\n}", info.schemaVarName))
+	return err
+}
+
+/**
+ * SchemaIDGetter get the schemaID returned from schema registry, used as header info when sending kafka record
+ * Added by xiaohuai
+ ***/
+func (codegen *CodeGenerator) writeSchemaIDGetter(info *recordSchemaInfo, buffer *bytes.Buffer) error {
+	var newSchemaID int32
+	var err error
+	underScoreName := govalidator.CamelCaseToUnderscore(info.typeName)
+	// should suspend the overall generation progress in case of register failure when specified register flag
+	if codegen.schemaRegClient != nil {
+
+		newSchemaID, err = codegen.schemaRegClient.Register(underScoreName, info.schema)
+		if err != nil {
+			fmt.Println("Register Schema", underScoreName, " Error, ", err)
+			return err
+		}
+	}
+
+	_, err = buffer.WriteString(fmt.Sprintf("func (o *%s) SchemaID() int32 {\n\t", info.typeName))
+	if err != nil {
+		return err
+	}
+	_, err = buffer.WriteString(fmt.Sprintf("return %d\n}\n\n", newSchemaID))
+
+	fmt.Println("Generate [", underScoreName, "] new schema ID:", newSchemaID)
+	return err
+}
+
+/**
+ * PackageGetter get the package name of the avro record, used for kafka topic
+ * Added by xiaohuai
+ **/
+func (codegen *CodeGenerator) writePackageGetter(info *recordSchemaInfo, buffer *bytes.Buffer) error {
+	_, err := buffer.WriteString(fmt.Sprintf("func (o *%s) PackageName() string {\n\t", info.typeName))
+	if err != nil {
+		return err
+	}
+
+	//packages := strings.Split(info.schema.Namespace, ".")
+	_, err = buffer.WriteString(fmt.Sprintf("return \"%s\"\n}\n\n", codegen.externPackageName))
 	return err
 }

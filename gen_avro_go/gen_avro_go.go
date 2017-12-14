@@ -18,11 +18,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/elodina/go-avro"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/Guazi-inc/go-avro"
 )
+
+
 
 type schemas []string
 
@@ -37,18 +40,21 @@ func (i *schemas) Set(value string) error {
 
 var schema schemas
 var output = flag.String("out", "", "Output file name.")
+var packageName = flag.String("package", "gzavro", "package name")
 
 func main() {
 	parseAndValidateArgs()
 
-	var schemas []string
+	schemas := make([]string, 0)
 	for _, schema := range schema {
 		contents, err := ioutil.ReadFile(schema)
 		checkErr(err)
 		schemas = append(schemas, string(contents))
 	}
 
-	gen := avro.NewCodeGenerator(schemas)
+	regClient := avro.NewCachedSchemaRegistryClient("")
+
+	gen := avro.NewCodeGenerator(schemas, regClient, *packageName)
 	code, err := gen.Generate()
 	checkErr(err)
 
