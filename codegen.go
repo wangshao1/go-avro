@@ -677,7 +677,7 @@ func (codegen *CodeGenerator) writeSchemaIDGetter(info *recordSchemaInfo, buffer
 	var err error
 	underScoreName := govalidator.CamelCaseToUnderscore(info.typeName)
 	// should suspend the overall generation progress in case of register failure when specified register flag
-	if codegen.schemaRegClient != nil {
+	if codegen.schemaRegClient != nil && codegen.schemaRegClient.IsReg() {
 
 		newSchemaID, err = codegen.schemaRegClient.Register(underScoreName, info.schema)
 		if err != nil {

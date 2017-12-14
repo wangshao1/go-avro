@@ -106,6 +106,7 @@ type CachedSchemaRegistryClient struct {
 	versionCache map[string]map[Schema]int32
 	auth         *RegistryAuth
 	lock         sync.RWMutex
+	isReg        bool
 }
 
 /**
@@ -114,16 +115,15 @@ type CachedSchemaRegistryClient struct {
 type RegistryClient interface {
 	Register(subject string, schema Schema) (int32, error)
 	GetByID(id int32) (Schema, error)
+	IsReg() bool
 }
 
 func NewCachedSchemaRegistryClient(registryURL string) *CachedSchemaRegistryClient {
 	if registryURL == "" {
 		registryURL = os.Getenv(ENV_REGISTRY)
 	}
-	if registryURL != "" {
-		return NewCachedSchemaRegistryClientAuth(registryURL, nil)
-	}
-	return nil
+
+	return NewCachedSchemaRegistryClientAuth(registryURL, nil)
 }
 
 func NewCachedSchemaRegistryClientAuth(registryURL string, auth *RegistryAuth) *CachedSchemaRegistryClient {
@@ -133,7 +133,12 @@ func NewCachedSchemaRegistryClientAuth(registryURL string, auth *RegistryAuth) *
 		idCache:      make(map[int32]Schema),
 		versionCache: make(map[string]map[Schema]int32),
 		auth:         auth,
+		isReg:        len(registryURL)>0,
 	}
+}
+
+func (this *CachedSchemaRegistryClient) IsReg() bool {
+	return this.isReg
 }
 
 func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) (int32, error) {
