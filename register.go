@@ -10,10 +10,10 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"os"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 	CHECK_IS_REGISTERED          = "/subjects/%s-value"
 	TEST_COMPATIBILITY           = "/compatibility/subjects/%s-value/versions/%s"
 	CONFIG                       = "/config"
-	ENV_REGISTRY = "SCHEMA_REGISTRY_ADDR"
+	ENV_REGISTRY                 = "SCHEMA_REGISTRY_ADDR"
 )
 
 type SchemaRegistryClient interface {
@@ -122,7 +122,10 @@ func NewCachedSchemaRegistryClient(registryURL string) *CachedSchemaRegistryClie
 	if registryURL == "" {
 		registryURL = os.Getenv(ENV_REGISTRY)
 	}
-
+	fmt.Println("RegistryURL=", registryURL)
+	if registryURL == "" {
+		fmt.Println("Warning: you have not set SCHEMA_REGISTRY_ADDR in the env, will not register the schema!")
+	}
 	return NewCachedSchemaRegistryClientAuth(registryURL, nil)
 }
 
@@ -133,7 +136,7 @@ func NewCachedSchemaRegistryClientAuth(registryURL string, auth *RegistryAuth) *
 		idCache:      make(map[int32]Schema),
 		versionCache: make(map[string]map[Schema]int32),
 		auth:         auth,
-		isReg:        len(registryURL)>0,
+		isReg:        len(registryURL) > 0,
 	}
 }
 
