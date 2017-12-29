@@ -223,7 +223,7 @@ func (writer *SpecificDatumWriter) writeUnion(v reflect.Value, enc Encoder, s Sc
 	index := unionSchema.GetType(v)
 
 	if unionSchema.Types == nil || index < 0 || index >= len(unionSchema.Types) {
-		return fmt.Errorf("Invalid union value: %v", v.Interface())
+		return fmt.Errorf("Invalid union value: %v, %s", v.Interface(), s.String())
 	}
 
 	enc.WriteLong(int64(index))
