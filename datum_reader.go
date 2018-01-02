@@ -61,6 +61,9 @@ func (enum *GenericEnum) Get() string {
 
 // SetIndex sets the numeric value for this enum.
 func (enum *GenericEnum) SetIndex(index int32) {
+	if index < 0 || index >= int32(len(enum.Symbols)) {
+		panic("Invalid enum index")
+	}
 	enum.index = index
 }
 
