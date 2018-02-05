@@ -161,6 +161,24 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 		schemaIdMap = make(map[Schema]int32)
 	}
 
+	// this.lock.RLock()
+	// if schemaIdMap, exists = this.schemaCache[subject]; exists {
+	// 	this.lock.RUnlock()
+	// 	var id int32
+	// 	if id, exists = schemaIdMap[schema]; exists {
+	// 		return id, nil
+	// 	}
+	// } else {
+	// 	this.lock.RUnlock()
+	// }
+
+	// this.lock.Lock()
+	// defer this.lock.Unlock()
+	// if schemaIdMap, exists = this.schemaCache[subject]; !exists {
+	// 	schemaIdMap = make(map[Schema]int32)
+	// 	this.schemaCache[subject] = schemaIdMap
+	// }
+
 	request, err := this.newDefaultRequest("POST",
 		fmt.Sprintf(REGISTER_NEW_SCHEMA, subject),
 		strings.NewReader(fmt.Sprintf("{\"schema\": %s}", strconv.Quote(schema.String()))))
@@ -215,6 +233,9 @@ func (this *CachedSchemaRegistryClient) GetByID(id int32) (Schema, error) {
 		schema, err = ParseSchema(decodedResponse.Schema)
 		this.idCache.Store(id, schema)
 
+		// this.lock.Lock()
+		// this.idCache[id] = schema
+		// this.lock.Unlock()
 		return schema, err
 	} else {
 		return nil, this.handleError(response)
