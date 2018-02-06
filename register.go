@@ -6,6 +6,7 @@ package avro
  */
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -155,34 +156,15 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 				return id, nil
 			}
 		} else {
-			schemaIdMap = make(map[Schema]int32)
+			return 0, errors.New("schemaCache is not map[schema]int32")
 		}
 	} else {
 		schemaIdMap = make(map[Schema]int32)
 	}
 
-	// this.lock.RLock()
-	// if schemaIdMap, exists = this.schemaCache[subject]; exists {
-	// 	this.lock.RUnlock()
-	// 	var id int32
-	// 	if id, exists = schemaIdMap[schema]; exists {
-	// 		return id, nil
-	// 	}
-	// } else {
-	// 	this.lock.RUnlock()
-	// }
-
-	// this.lock.Lock()
-	// defer this.lock.Unlock()
-	// if schemaIdMap, exists = this.schemaCache[subject]; !exists {
-	// 	schemaIdMap = make(map[Schema]int32)
-	// 	this.schemaCache[subject] = schemaIdMap
-	// }
-
 	request, err := this.newDefaultRequest("POST",
 		fmt.Sprintf(REGISTER_NEW_SCHEMA, subject),
 		strings.NewReader(fmt.Sprintf("{\"schema\": %s}", strconv.Quote(schema.String()))))
-
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return 0, err
@@ -197,7 +179,6 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 		schemaIdMap[schema] = decodedResponse.Id
 		this.schemaCache.Store(subject, schemaIdMap)
 		this.idCache.Store(decodedResponse.Id, schema)
-		//		this.idCache[decodedResponse.Id] = schema
 
 		return decodedResponse.Id, err
 	} else {
@@ -277,7 +258,7 @@ func (this *CachedSchemaRegistryClient) GetVersion(subject string, schema Schema
 				return version, nil
 			}
 		} else {
-			schemaVersionMap = make(map[Schema]int32)
+			return 0, errors.New("versionCache is not map[schema]int32")
 		}
 	} else {
 		schemaVersionMap = make(map[Schema]int32)
@@ -307,7 +288,7 @@ func (this *CachedSchemaRegistryClient) GetIDBySchema(subject string, schema Sch
 				return id, nil
 			}
 		} else {
-			schemaIDMap = make(map[Schema]int32)
+			return 0, errors.New("schemaCache is not map[schema]int32")
 		}
 	} else {
 		schemaIDMap = make(map[Schema]int32)
