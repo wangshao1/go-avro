@@ -6,6 +6,7 @@ package avro
  */
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -33,6 +34,7 @@ type SchemaRegistryClient interface {
 	GetByID(id int32) (Schema, error)
 	GetLatestSchemaMetadata(subject string) (*SchemaMetadata, error)
 	GetVersion(subject string, schema Schema) (int32, error)
+	GetIDBySchema(subject string, schema Schema) (int32, error)
 }
 
 type RegistryAuth struct {
@@ -100,12 +102,12 @@ type GetSubjectVersionResponse struct {
 }
 
 type CachedSchemaRegistryClient struct {
-	registryURL  string
-	schemaCache  map[string]map[Schema]int32
-	idCache      map[int32]Schema
-	versionCache map[string]map[Schema]int32
+	registryURL string
+
+	schemaCache  sync.Map
+	idCache      sync.Map
+	versionCache sync.Map
 	auth         *RegistryAuth
-	lock         sync.RWMutex
 	isReg        bool
 }
 
@@ -115,6 +117,7 @@ type CachedSchemaRegistryClient struct {
 type RegistryClient interface {
 	Register(subject string, schema Schema) (int32, error)
 	GetByID(id int32) (Schema, error)
+	GetIDBySchema(subject string, schema Schema) (int32, error)
 	IsReg() bool
 }
 
@@ -131,12 +134,9 @@ func NewCachedSchemaRegistryClient(registryURL string) *CachedSchemaRegistryClie
 
 func NewCachedSchemaRegistryClientAuth(registryURL string, auth *RegistryAuth) *CachedSchemaRegistryClient {
 	return &CachedSchemaRegistryClient{
-		registryURL:  registryURL,
-		schemaCache:  make(map[string]map[Schema]int32),
-		idCache:      make(map[int32]Schema),
-		versionCache: make(map[string]map[Schema]int32),
-		auth:         auth,
-		isReg:        len(registryURL) > 0,
+		registryURL: registryURL,
+		auth:        auth,
+		isReg:       len(registryURL) > 0,
 	}
 }
 
@@ -147,29 +147,24 @@ func (this *CachedSchemaRegistryClient) IsReg() bool {
 func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) (int32, error) {
 	var schemaIdMap map[Schema]int32
 	var exists bool
+	var id int32
 
-	this.lock.RLock()
-	if schemaIdMap, exists = this.schemaCache[subject]; exists {
-		this.lock.RUnlock()
-		var id int32
-		if id, exists = schemaIdMap[schema]; exists {
-			return id, nil
+	tempSchemaIDMap, exists := this.schemaCache.Load(subject)
+	if exists {
+		if schemaIdMap, ok := tempSchemaIDMap.(map[Schema]int32); ok {
+			if id, exists = schemaIdMap[schema]; exists {
+				return id, nil
+			}
+		} else {
+			return 0, errors.New("schemaCache is not map[schema]int32")
 		}
 	} else {
-		this.lock.RUnlock()
-	}
-
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	if schemaIdMap, exists = this.schemaCache[subject]; !exists {
 		schemaIdMap = make(map[Schema]int32)
-		this.schemaCache[subject] = schemaIdMap
 	}
 
 	request, err := this.newDefaultRequest("POST",
 		fmt.Sprintf(REGISTER_NEW_SCHEMA, subject),
 		strings.NewReader(fmt.Sprintf("{\"schema\": %s}", strconv.Quote(schema.String()))))
-
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return 0, err
@@ -182,7 +177,8 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 		}
 
 		schemaIdMap[schema] = decodedResponse.Id
-		this.idCache[decodedResponse.Id] = schema
+		this.schemaCache.Store(subject, schemaIdMap)
+		this.idCache.Store(decodedResponse.Id, schema)
 
 		return decodedResponse.Id, err
 	} else {
@@ -193,12 +189,13 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 func (this *CachedSchemaRegistryClient) GetByID(id int32) (Schema, error) {
 	var schema Schema
 	var exists bool
-	this.lock.RLock()
-	if schema, exists = this.idCache[id]; exists {
-		this.lock.RUnlock()
-		return schema, nil
+
+	tempSchema, exists := this.idCache.Load(id)
+	if exists {
+		if schema, ok := tempSchema.(Schema); ok {
+			return schema, nil
+		}
 	}
-	this.lock.RUnlock()
 
 	request, err := this.newDefaultRequest("GET", fmt.Sprintf(GET_SCHEMA_BY_ID, id), nil)
 	if err != nil {
@@ -214,11 +211,12 @@ func (this *CachedSchemaRegistryClient) GetByID(id int32) (Schema, error) {
 		if err := this.handleSuccess(response, decodedResponse); err != nil {
 			return nil, err
 		}
-		schema, err := ParseSchema(decodedResponse.Schema)
-		this.lock.Lock()
-		this.idCache[id] = schema
-		this.lock.Unlock()
+		schema, err = ParseSchema(decodedResponse.Schema)
+		this.idCache.Store(id, schema)
 
+		// this.lock.Lock()
+		// this.idCache[id] = schema
+		// this.lock.Unlock()
 		return schema, err
 	} else {
 		return nil, this.handleError(response)
@@ -250,35 +248,79 @@ func (this *CachedSchemaRegistryClient) GetLatestSchemaMetadata(subject string) 
 func (this *CachedSchemaRegistryClient) GetVersion(subject string, schema Schema) (int32, error) {
 	var schemaVersionMap map[Schema]int32
 	var exists bool
-	if schemaVersionMap, exists = this.versionCache[subject]; !exists {
-		schemaVersionMap = make(map[Schema]int32)
-		this.versionCache[subject] = schemaVersionMap
-	}
 
 	var version int32
-	if version, exists = schemaVersionMap[schema]; exists {
-		return version, nil
+	tempSchemaVMap, exists := this.versionCache.Load(subject)
+	if exists {
+		schemaVersionMap, ok := tempSchemaVMap.(map[Schema]int32)
+		if ok {
+			if version, exists = schemaVersionMap[schema]; exists {
+				return version, nil
+			}
+		} else {
+			return 0, errors.New("versionCache is not map[schema]int32")
+		}
+	} else {
+		schemaVersionMap = make(map[Schema]int32)
 	}
+	decodedResponse, err := this.checkIfRegistered(subject, schema)
+	if err != nil {
+		return 0, err
+	}
+	schemaVersionMap[schema] = decodedResponse.Version
+	this.versionCache.Store(subject, schemaVersionMap)
+	return decodedResponse.Version, nil
+
+}
+
+// GetIDBySchema 通过subject，schema获取schemaID
+func (this *CachedSchemaRegistryClient) GetIDBySchema(subject string, schema Schema) (int32, error) {
+	var schemaIDMap map[Schema]int32
+	var exists bool
+	var id int32
+
+	// 在缓存中查找
+	tempSchemaIDMap, exists := this.schemaCache.Load(subject)
+	if exists {
+		schemaIDMap, ok := tempSchemaIDMap.(map[Schema]int32)
+		if ok {
+			if id, exists = schemaIDMap[schema]; exists {
+				return id, nil
+			}
+		} else {
+			return 0, errors.New("schemaCache is not map[schema]int32")
+		}
+	} else {
+		schemaIDMap = make(map[Schema]int32)
+	}
+
+	// 向注册中心请求
+	decodedResponse, err := this.checkIfRegistered(subject, schema)
+	if err != nil {
+		return 0, err
+	}
+	schemaIDMap[schema] = decodedResponse.Id
+	this.schemaCache.Store(subject, schemaIDMap)
+	return decodedResponse.Id, nil
+}
+func (this *CachedSchemaRegistryClient) checkIfRegistered(subject string, schema Schema) (*GetSubjectVersionResponse, error) {
 
 	request, err := this.newDefaultRequest("POST",
 		fmt.Sprintf(CHECK_IS_REGISTERED, subject),
 		strings.NewReader(fmt.Sprintf("{\"schema\": %s}", strconv.Quote(schema.String()))))
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	if this.isOK(response) {
 		decodedResponse := &GetSubjectVersionResponse{}
 		if err := this.handleSuccess(response, decodedResponse); err != nil {
-			return 0, err
+			return nil, err
 		}
-		schemaVersionMap[schema] = decodedResponse.Version
-
-		return decodedResponse.Version, err
-	} else {
-		return 0, this.handleError(response)
+		return decodedResponse, nil
 	}
+	return nil, this.handleError(response)
 }
 
 func (this *CachedSchemaRegistryClient) newDefaultRequest(method string, uri string, reader io.Reader) (*http.Request, error) {
