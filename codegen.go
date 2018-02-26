@@ -25,8 +25,6 @@ import (
 	"github.com/asaskevich/govalidator"
 )
 
-
-
 // CodeGenerator is a code generation tool for structs from given Avro schemas.
 type CodeGenerator struct {
 	rawSchemas []string
@@ -204,11 +202,6 @@ func (codegen *CodeGenerator) writeStruct(info *recordSchemaInfo) error {
 	}
 
 	_, err = buffer.WriteString("\n\n")
-	if err != nil {
-		return err
-	}
-
-	err = codegen.writeSchemaIDGetter(info, buffer)
 	if err != nil {
 		return err
 	}
@@ -669,34 +662,6 @@ func (codegen *CodeGenerator) writeSchemaGetter(info *recordSchemaInfo, buffer *
 }
 
 /**
- * SchemaIDGetter get the schemaID returned from schema registry, used as header info when sending kafka record
- * Added by xiaohuai
- ***/
-func (codegen *CodeGenerator) writeSchemaIDGetter(info *recordSchemaInfo, buffer *bytes.Buffer) error {
-	var newSchemaID int32
-	var err error
-	underScoreName := govalidator.CamelCaseToUnderscore(info.typeName)
-	// should suspend the overall generation progress in case of register failure when specified register flag
-	if codegen.schemaRegClient != nil && codegen.schemaRegClient.IsReg() {
-
-		newSchemaID, err = codegen.schemaRegClient.Register(underScoreName, info.schema)
-		if err != nil {
-			fmt.Println("Register Schema", underScoreName, " Error, ", err)
-			return err
-		}
-	}
-
-	_, err = buffer.WriteString(fmt.Sprintf("func (o *%s) SchemaID() int32 {\n\t", info.typeName))
-	if err != nil {
-		return err
-	}
-	_, err = buffer.WriteString(fmt.Sprintf("return %d\n}\n\n", newSchemaID))
-
-	fmt.Println("Generate [", underScoreName, "] new schema ID:", newSchemaID)
-	return err
-}
-
-/**
  * PackageGetter get the package name of the avro record, used for kafka topic
  * Added by xiaohuai
  **/
@@ -709,4 +674,31 @@ func (codegen *CodeGenerator) writePackageGetter(info *recordSchemaInfo, buffer 
 	//packages := strings.Split(info.schema.Namespace, ".")
 	_, err = buffer.WriteString(fmt.Sprintf("return \"%s\"\n}\n\n", codegen.externPackageName))
 	return err
+}
+
+// ParseAndRegister 解析.avsc，注册schema
+func ParseAndRegister(schemas []string, client RegistryClient) error {
+	for _, rawSchema := range schemas {
+		parsedSchema, err := ParseSchema(rawSchema)
+		if err != nil {
+			return err
+		}
+		schema, ok := parsedSchema.(*RecordSchema)
+		if !ok {
+			return errors.New("Not a Record schema")
+		}
+		schemaInfo, err := newRecordSchemaInfo(schema)
+		if err != nil {
+			return err
+		}
+		underScoreName := govalidator.CamelCaseToUnderscore(schemaInfo.typeName)
+		if client != nil && client.IsReg() {
+			_, err := client.Register(underScoreName, schemaInfo.schema)
+			if err != nil {
+				fmt.Println("Register Schema", underScoreName, " Error, ", err)
+				return err
+			}
+		}
+	}
+	return nil
 }
