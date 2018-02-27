@@ -1,9 +1,9 @@
-schema register Tool 
+schema compatibility check tool 
 ===============================
 
 **Usage**:
 
-`go run avro_register.go --schema foo.avsc --schema bar.avsc`
+`go run compatibility_check.go --schema foo.avsc`
 
 **Command line flags**:
 

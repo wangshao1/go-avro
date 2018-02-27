@@ -693,11 +693,12 @@ func ParseAndRegister(schemas []string, client RegistryClient) error {
 		}
 		underScoreName := govalidator.CamelCaseToUnderscore(schemaInfo.typeName)
 		if client != nil && client.IsReg() {
-			_, err := client.Register(underScoreName, schemaInfo.schema)
+			schemaID, err := client.Register(underScoreName, schemaInfo.schema)
 			if err != nil {
 				fmt.Println("Register Schema", underScoreName, " Error, ", err)
 				return err
 			}
+			fmt.Printf("%s-value:	%v", underScoreName, schemaID)
 		}
 	}
 	return nil
