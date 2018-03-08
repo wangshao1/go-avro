@@ -698,7 +698,7 @@ func ParseAndRegister(schemas []string, client RegistryClient) error {
 				fmt.Println("Register Schema", underScoreName, " Error, ", err)
 				return err
 			}
-			fmt.Printf("%s-value:	%v", underScoreName, schemaID)
+			fmt.Printf("%s-value:	%v \n", underScoreName, schemaID)
 		}
 	}
 	return nil
