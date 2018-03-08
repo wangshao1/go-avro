@@ -16,12 +16,18 @@ import (
 )
 
 const (
+<<<<<<< HEAD
 	// 兼容性检测path，每次都与最新版本进行对比
 	TEST_COMPATIBILITY = "/compatibility/subjects/%s-value/versions/latest"
 	// 注册中心环境变量
 	ENV_REGISTRY = "SCHEMA_REGISTRY_ADDR"
 	// 可以兼容时返回内容
 	EXPECT_RETURN = `{"is_compatible":true}`
+=======
+	TEST_COMPATIBILITY = "/compatibility/subjects/%s-value/versions/latest"
+	ENV_REGISTRY       = "SCHEMA_REGISTRY_ADDR"
+	EXPECT_RETURN      = `{"is_compatible":true}`
+>>>>>>> 34a70e181a48f2f2bfae7e85ec90b694b984d650
 )
 
 type schemas []string
@@ -39,7 +45,10 @@ var schema schemas
 func main() {
 	parseflag()
 
+<<<<<<< HEAD
 	// 构造请求url
+=======
+>>>>>>> 34a70e181a48f2f2bfae7e85ec90b694b984d650
 	registryURL := os.Getenv(ENV_REGISTRY)
 	if registryURL == "" {
 		fmt.Println("have not set SCHEMA_REGISTRY_ADDR in the env,cannot check compatibility")
