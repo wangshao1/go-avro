@@ -692,6 +692,10 @@ func ParseAndRegister(schemas []string, client RegistryClient) error {
 			return err
 		}
 		underScoreName := govalidator.CamelCaseToUnderscore(schemaInfo.typeName)
+		if strings.ContainsAny(underScoreName, "1234567890") {
+			err := fmt.Errorf("%s-value :failed to check compatibility, subject cannot contain any numbers", underScoreName)
+			return err
+		}
 		if client != nil && client.IsReg() {
 			schemaID, err := client.Register(underScoreName, schemaInfo.schema)
 			if err != nil {

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	avro "github.com/Guazi-inc/go-avro"
 	"github.com/asaskevich/govalidator"
@@ -62,8 +63,14 @@ func main() {
 		}
 		checkErr(err)
 
-		// 构造http请求
+		// subject中不能包含数字
 		subject := govalidator.CamelCaseToUnderscore(sch.Name)
+		if strings.ContainsAny(subject, "1234567890") {
+			err := fmt.Errorf("%s-value :failed to check compatibility, subject cannot contain any numbers", subject)
+			checkErr(err)
+		}
+
+		// 构造http请求
 		urlpath := fmt.Sprintf(urlBase, subject)
 		val := map[string]string{"schema": sch.String()}
 		temp, err := json.Marshal(val)
@@ -75,7 +82,7 @@ func main() {
 		resp, err := http.DefaultClient.Do(request)
 		checkErr(err)
 		if resp.StatusCode != 200 && resp.StatusCode != 404 {
-			err := fmt.Errorf("%s :failed to check compatibility.statuscode:%v", subject, resp.StatusCode)
+			err := fmt.Errorf("%s-value :failed to check compatibility.statuscode:%v", subject, resp.StatusCode)
 			checkErr(err)
 		}
 		body, err := ioutil.ReadAll(resp.Body)
