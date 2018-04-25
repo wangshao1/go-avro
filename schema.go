@@ -334,7 +334,7 @@ func (*BooleanSchema) Prop(key string) (interface{}, bool) {
 
 // Validate checks whether the given value is writeable to this schema.
 func (*BooleanSchema) Validate(v reflect.Value) bool {
-	return dereference(v).Kind() == reflect.Bool
+	return reflect.TypeOf(dereference(v).Interface()).Kind() == reflect.Bool
 }
 
 // MarshalJSON serializes the given schema as JSON. Never returns an error.
@@ -885,11 +885,11 @@ func (s *FixedSchema) MarshalJSON() ([]byte, error) {
 }
 
 type AliasSchema struct {
-	Name string
-	AliasType string
-	Doc  string
+	Name       string
+	AliasType  string
+	Doc        string
 	Properties map[string]interface{}
-	RefSchema Schema
+	RefSchema  Schema
 }
 
 func (s *AliasSchema) String() string {
@@ -903,9 +903,10 @@ func (s *AliasSchema) GetName() string {
 func (s *AliasSchema) Type() int {
 	return Alias
 }
+
 // MarshalJSON serializes the given schema as JSON. Never returns an error.
 func (s *AliasSchema) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`"%s"`,s.AliasType)), nil
+	return []byte(fmt.Sprintf(`"%s"`, s.AliasType)), nil
 }
 
 // Prop gets a custom non-reserved property from this schema and a bool representing if it exists.
@@ -1006,10 +1007,10 @@ func schemaByType(i interface{}, registry map[string]Schema, namespace string) (
 				return nil, fmt.Errorf("Unknown type name: %s", v)
 			}
 
-			// duplicate schema should use aliase type name, mainly for same enum fields 
+			// duplicate schema should use aliase type name, mainly for same enum fields
 			aliasSchema := &AliasSchema{
-				AliasType:schema.GetName(),
-				RefSchema:schema,
+				AliasType: schema.GetName(),
+				RefSchema: schema,
 			}
 			return aliasSchema, nil
 		}
