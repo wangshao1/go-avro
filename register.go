@@ -153,10 +153,11 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 	var schemaIdMap map[Schema]int32
 	var exists bool
 	var id int32
+	var ok bool
 
 	tempSchemaIDMap, exists := this.schemaCache.Load(subject)
 	if exists {
-		if schemaIdMap, ok := tempSchemaIDMap.(map[Schema]int32); ok {
+		if schemaIdMap, ok = tempSchemaIDMap.(map[Schema]int32); ok {
 			if id, exists = schemaIdMap[schema]; exists {
 				return id, nil
 			}
@@ -253,11 +254,12 @@ func (this *CachedSchemaRegistryClient) GetLatestSchemaMetadata(subject string) 
 func (this *CachedSchemaRegistryClient) GetVersion(subject string, schema Schema) (int32, error) {
 	var schemaVersionMap map[Schema]int32
 	var exists bool
+	var ok bool
 
 	var version int32
 	tempSchemaVMap, exists := this.versionCache.Load(subject)
 	if exists {
-		schemaVersionMap, ok := tempSchemaVMap.(map[Schema]int32)
+		schemaVersionMap, ok = tempSchemaVMap.(map[Schema]int32)
 		if ok {
 			if version, exists = schemaVersionMap[schema]; exists {
 				return version, nil
@@ -283,11 +285,12 @@ func (this *CachedSchemaRegistryClient) GetIDBySchema(subject string, schema Sch
 	var schemaIDMap map[Schema]int32
 	var exists bool
 	var id int32
+	var ok bool
 
 	// 在缓存中查找
 	tempSchemaIDMap, exists := this.schemaCache.Load(subject)
 	if exists {
-		schemaIDMap, ok := tempSchemaIDMap.(map[Schema]int32)
+		schemaIDMap, ok = tempSchemaIDMap.(map[Schema]int32)
 		if ok {
 			if id, exists = schemaIDMap[schema]; exists {
 				return id, nil
