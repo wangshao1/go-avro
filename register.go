@@ -154,10 +154,11 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 	var id int32
 	var ok bool
 
+	schemaStr:=schema.String()
 	tempSchemaIDMap, exists := this.schemaCache.Load(subject)
 	if exists {
 		if schemaIdMap, ok = tempSchemaIDMap.(map[string]int32); ok {
-			if id, exists = schemaIdMap[schema.String()]; exists {
+			if id, exists = schemaIdMap[schemaStr]; exists {
 				return id, nil
 			}
 		} else {
@@ -182,7 +183,7 @@ func (this *CachedSchemaRegistryClient) Register(subject string, schema Schema) 
 			return 0, err
 		}
 
-		schemaIdMap[schema.String()] = decodedResponse.Id
+		schemaIdMap[schemaStr] = decodedResponse.Id
 		this.schemaCache.Store(subject, schemaIdMap)
 		this.idCache.Store(decodedResponse.Id, schema)
 
@@ -257,11 +258,12 @@ func (this *CachedSchemaRegistryClient) GetVersion(subject string, schema Schema
 	var ok bool
 
 	var version int32
+	schemaStr:=schema.String()
 	tempSchemaVMap, exists := this.versionCache.Load(subject)
 	if exists {
 		schemaVersionMap, ok = tempSchemaVMap.(map[string]int32)
 		if ok {
-			if version, exists = schemaVersionMap[schema.String()]; exists {
+			if version, exists = schemaVersionMap[schemaStr]; exists {
 				return version, nil
 			}
 		} else {
@@ -275,7 +277,7 @@ func (this *CachedSchemaRegistryClient) GetVersion(subject string, schema Schema
 	if err != nil {
 		return 0, err
 	}
-	schemaVersionMap[schema.String()] = decodedResponse.Version
+	schemaVersionMap[schemaStr] = decodedResponse.Version
 	this.versionCache.Store(subject, schemaVersionMap)
 	return decodedResponse.Version, nil
 
@@ -288,12 +290,13 @@ func (this *CachedSchemaRegistryClient) GetIDBySchema(subject string, schema Sch
 	var id int32
 	var ok bool
 
+	schemaStr:=schema.String()
 	// 在缓存中查找
 	tempSchemaIDMap, exists := this.schemaCache.Load(subject)
 	if exists {
 		schemaIDMap, ok = tempSchemaIDMap.(map[string]int32)
 		if ok {
-			if id, exists = schemaIDMap[schema.String()]; exists {
+			if id, exists = schemaIDMap[schemaStr]; exists {
 				return id, nil
 			}
 		} else {
@@ -308,7 +311,7 @@ func (this *CachedSchemaRegistryClient) GetIDBySchema(subject string, schema Sch
 	if err != nil {
 		return 0, err
 	}
-	schemaIDMap[schema.String()] = decodedResponse.Id
+	schemaIDMap[schemaStr] = decodedResponse.Id
 	this.schemaCache.Store(subject, schemaIDMap)
 	return decodedResponse.Id, nil
 }
